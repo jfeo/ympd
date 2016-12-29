@@ -36,7 +36,7 @@ if(WITH_SSL)
     set_property(DIRECTORY APPEND PROPERTY COMPILE_DEFINITIONS NS_ENABLE_SSL)
 endif()
 
-file(GLOB RESOURCES 
+file(GLOB RESOURCES
     RELATIVE ${PROJECT_SOURCE_DIR}
     htdocs/js/*
     htdocs/assets/*
@@ -50,6 +50,8 @@ set(SOURCES
     src/mpd_client.c
     src/mongoose.c
     src/json_encode.c
+    src/audiocd.c
+    src/cddb_helper.c
 )
 
 if(NOT WITH_DYNAMIC_ASSETS)
@@ -70,7 +72,7 @@ if(NOT WITH_DYNAMIC_ASSETS)
 endif()
 
 add_executable(ympd ${SOURCES})
-target_link_libraries(ympd ${LIBMPDCLIENT_LIBRARY} ${CMAKE_THREAD_LIBS_INIT} ${OPENSSL_LIBRARIES})
+target_link_libraries(ympd ${LIBMPDCLIENT_LIBRARY} ${CMAKE_THREAD_LIBS_INIT} ${OPENSSL_LIBRARIES} cdio cddb)
 
 install(TARGETS ympd DESTINATION bin)
 install(FILES ympd.1 DESTINATION ${CMAKE_INSTALL_PREFIX}/share/man/man1)
