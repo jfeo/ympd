@@ -1,7 +1,7 @@
 /* ympd
    (c) 2013-2014 Andrew Karpow <andy@ndyk.de>
    This project's homepage is: http://www.ympd.org
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; version 2 of the License.
@@ -42,6 +42,7 @@ var app = $.sammy(function() {
 
         $('#panel-heading').text("Queue");
         $('#queue').addClass('active');
+        $('#audiocd-info').addClass('hide');
     }
 
     function prepare() {
@@ -66,6 +67,7 @@ var app = $.sammy(function() {
         $('#breadcrump').removeClass('hide').empty().append("<li><a href=\"#/browse/0/\">root</a></li>");
         $('#salamisandwich').removeClass('hide').find("tr:gt(0)").remove();
         $('#dirble_panel').addClass('hide');
+        $('#audiocd-info').addClass('hide');
         socket.send('MPD_API_GET_BROWSE,'+pagination+','+(browsepath ? browsepath : "/"));
         // Don't add all songs from root
         if (browsepath) {
@@ -97,12 +99,26 @@ var app = $.sammy(function() {
         current_app = 'search';
         $('#salamisandwich').find("tr:gt(0)").remove();
         $('#dirble_panel').addClass('hide');
+        $('#audiocd-info').addClass('hide');
         var searchstr = this.params['splat'][0];
 
         $('#search > div > input').val(searchstr);
         socket.send('MPD_API_SEARCH,' + searchstr);
 
         $('#panel-heading').text("Search: "+searchstr);
+    });
+
+    this.get(/\#\/audiocd\/(.*)/, function() {
+      prepare();
+      current_app = 'audiocd';
+      $('#audiocd').addClass('active');
+      $('#breadcrump').addClass('hide');
+      $('#salamisandwich').removeClass('hide').find("tr:gt(0)").remove();
+      $('#dirble_panel').addClass('hide');
+      $('#panel-heading').text("Audio CD");
+      $('#audiocd-info').removeClass('hide');
+      socket.send('MPD_API_AUDIO_CD');
+
     });
 
 
@@ -207,6 +223,8 @@ function webSocketConnect() {
 
             var obj = JSON.parse(msg.data);
 
+            console.log(obj);
+
             switch (obj.type) {
                 case "queue":
                     if(current_app !== 'queue')
@@ -219,7 +237,7 @@ function webSocketConnect() {
 
                         $('#salamisandwich > tbody').append(
                             "<tr trackid=\"" + obj.data[song].id + "\"><td>" + (obj.data[song].pos + 1) + "</td>" +
-                                "<td>"+ obj.data[song].title +"</td>" + 
+                                "<td>"+ obj.data[song].title +"</td>" +
                                 "<td>"+ minutes + ":" + (seconds < 10 ? '0' : '') + seconds +
                         "</td><td></td></tr>");
                     }
@@ -256,6 +274,25 @@ function webSocketConnect() {
                             $(this).addClass('active');
                         },
                     });
+                    break;
+                case "audiocd":
+                    if (current_app != 'audiocd')
+                      break;
+
+                    $('#audiocd-info-title').text(obj.data.title);
+                    $('#audiocd-info-artist').text(obj.data.artist);
+
+                    $('#salamisandwich > tbody').empty();
+                    for (var song in obj.data.tracks) {
+                        var minutes = Math.floor(obj.data.tracks[song].duration / 60);
+                        var seconds = obj.data.tracks[song].duration - minutes * 60;
+
+                        $('#salamisandwich > tbody').append(
+                            "<tr><td>"+ (parseInt(song) + 1) +"</td>" +
+                                "<td>"+ obj.data.tracks[song].title +"</td>" +
+                                "<td>"+ minutes + ":" + (seconds < 10 ? '0' : '') + seconds +
+                        "</td><td></td></tr>");
+                    }
                     break;
                 case "search":
                     $('#wait').modal('hide');
@@ -302,8 +339,8 @@ function webSocketConnect() {
                                     $('#next').removeClass('hide');
                                 } else {
                                     $('#salamisandwich > tbody').append(
-                                        "<tr><td><span class=\"glyphicon glyphicon-remove\"></span></td>" + 
-                                        "<td>Too many results, please refine your search!</td>" + 
+                                        "<tr><td><span class=\"glyphicon glyphicon-remove\"></span></td>" +
+                                        "<td>Too many results, please refine your search!</td>" +
                                         "<td></td><td></td></tr>"
                                     );
                                 }
@@ -335,7 +372,7 @@ function webSocketConnect() {
                     } else {
                         $('#salamisandwich > tbody > tr').on({
                             mouseenter: function() {
-                                if($(this).is(".dir")) 
+                                if($(this).is(".dir"))
                                     appendClickableIcon($(this).children().last(), 'MPD_API_ADD_TRACK', 'plus');
                                 else if($(this).is(".song"))
                                     appendClickableIcon($(this).children().last(), 'MPD_API_ADD_PLAY_TRACK', 'play');
@@ -395,7 +432,7 @@ function webSocketConnect() {
                     $('#progressbar').slider(progress);
 
                     $('#counter')
-                    .text(elapsed_minutes + ":" + 
+                    .text(elapsed_minutes + ":" +
                         (elapsed_seconds < 10 ? '0' : '') + elapsed_seconds + " / " +
                         total_minutes + ":" + (total_seconds < 10 ? '0' : '') + total_seconds);
 
@@ -485,7 +522,7 @@ function webSocketConnect() {
                             message:{html: notification},
                             type: "info",
                         }).show();
-                        
+
                     break;
                 case "mpdhost":
                     $('#mpdhost').val(obj.data.host);
@@ -508,7 +545,7 @@ function webSocketConnect() {
             console.log("disconnected");
             $('.top-right').notify({
                 message:{text:"Connection to ympd lost, retrying in 3 seconds "},
-                type: "danger", 
+                type: "danger",
                 onClose: function () {
                     webSocketConnect();
                 }

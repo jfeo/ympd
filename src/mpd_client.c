@@ -1,7 +1,7 @@
 /* ympd
    (c) 2013-2014 Andrew Karpow <andy@ndyk.de>
    This project's homepage is: http://www.ympd.org
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; version 2 of the License.
@@ -26,6 +26,7 @@
 #include "mpd_client.h"
 #include "config.h"
 #include "json_encode.h"
+#include "audiocd.h"
 
 /* forward declaration */
 static int mpd_notify_callback(struct mg_connection *c, enum mg_event ev);
@@ -141,6 +142,9 @@ int callback_mpd(struct mg_connection *c)
         case MPD_API_GET_QUEUE:
             if(sscanf(c->content, "MPD_API_GET_QUEUE,%u", &uint_buf))
                 n = mpd_put_queue(mpd.buf, uint_buf);
+            break;
+        case MPD_API_AUDIO_CD:
+            n = mpd_put_audio_cd(mpd.buf);
             break;
         case MPD_API_GET_BROWSE:
             p_charbuf = strdup(c->content);
@@ -279,7 +283,7 @@ out_set_pass:
 
     if(mpd.conn_state == MPD_CONNECTED && mpd_connection_get_error(mpd.conn) != MPD_ERROR_SUCCESS)
     {
-        n = snprintf(mpd.buf, MAX_SIZE, "{\"type\":\"error\", \"data\": \"%s\"}", 
+        n = snprintf(mpd.buf, MAX_SIZE, "{\"type\":\"error\", \"data\": \"%s\"}",
             mpd_connection_get_error_message(mpd.conn));
 
         /* Try to recover error */
@@ -310,7 +314,7 @@ static int mpd_notify_callback(struct mg_connection *c, enum mg_event ev) {
     if(c->callback_param)
     {
         /* error message? */
-        n = snprintf(mpd.buf, MAX_SIZE, "{\"type\":\"error\",\"data\":\"%s\"}", 
+        n = snprintf(mpd.buf, MAX_SIZE, "{\"type\":\"error\",\"data\":\"%s\"}",
             (const char *)c->callback_param);
 
         mg_websocket_write(c, 1, mpd.buf, n);
@@ -454,9 +458,9 @@ int mpd_put_state(char *buffer, int *current_song_id, unsigned *queue_version)
         " \"single\":%d, \"crossfade\":%d, \"consume\":%d, \"random\":%d, "
         " \"songpos\": %d, \"elapsedTime\": %d, \"totalTime\":%d, "
         " \"currentsongid\": %d"
-        "}}", 
+        "}}",
         mpd_status_get_state(status),
-        mpd_status_get_volume(status), 
+        mpd_status_get_volume(status),
         mpd_status_get_repeat(status),
         mpd_status_get_single(status),
         mpd_status_get_crossfade(status),
@@ -575,6 +579,32 @@ int mpd_put_queue(char *buffer, unsigned int offset)
 
     cur += json_emit_raw_str(cur, end - cur, "]}");
     return cur - buffer;
+}
+
+int mpd_put_audio_cd(char *buffer) {
+  char *cur = buffer;
+  const char *end = buffer + MAX_SIZE;
+
+  audiocd_read_metadata();
+  cur += json_emit_raw_str(cur, end - cur, "{\"type\": \"audiocd\", \"data\":{\"title\":");
+  cur += json_emit_quoted_str(cur, end - cur, audiocd_get_title());
+  cur += json_emit_raw_str(cur, end - cur, ", \"artist\":");
+  cur += json_emit_quoted_str(cur, end - cur, audiocd_get_artist());
+  cur += json_emit_raw_str(cur, end - cur, ", \"tracks\":[");
+  do {
+    cur += json_emit_raw_str(cur, end - cur, "{\"title\":");
+    cur += json_emit_quoted_str(cur, end - cur, audiocd_get_track_title());
+    cur += json_emit_raw_str(cur, end - cur, ", \"duration\":");
+    cur += json_emit_int(cur, end - cur, audiocd_get_track_length());
+    cur += json_emit_raw_str(cur, end - cur, "},");
+  } while (audiocd_next_track());
+
+  /* remove last ',' */
+  cur--;
+
+  cur += json_emit_raw_str(cur, end - cur, "]}}");
+
+  return cur - buffer;
 }
 
 int mpd_put_browse(char *buffer, char *path, unsigned int offset)

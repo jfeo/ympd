@@ -1,7 +1,7 @@
 /* ympd
    (c) 2013-2014 Andrew Karpow <andy@ndyk.de>
    This project's homepage is: http://www.ympd.org
-   
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; version 2 of the License.
@@ -33,7 +33,7 @@ int callback_http(struct mg_connection *c)
     {
         mg_send_header(c, "Content-Type", req_file->mimetype);
         mg_send_data(c, req_file->data, req_file->size);
-    
+
         return MG_TRUE;
     }
 
