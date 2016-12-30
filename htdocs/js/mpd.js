@@ -49,6 +49,7 @@ var app = $.sammy(function() {
         $('#nav_links > li').removeClass('active');
         $('.page-btn').addClass('hide');
         $('#add-all-songs').hide();
+        $('#audiocd-info').addClass('hide');
         pagination = 0;
         browsepath = '';
     }
@@ -67,7 +68,6 @@ var app = $.sammy(function() {
         $('#breadcrump').removeClass('hide').empty().append("<li><a href=\"#/browse/0/\">root</a></li>");
         $('#salamisandwich').removeClass('hide').find("tr:gt(0)").remove();
         $('#dirble_panel').addClass('hide');
-        $('#audiocd-info').addClass('hide');
         socket.send('MPD_API_GET_BROWSE,'+pagination+','+(browsepath ? browsepath : "/"));
         // Don't add all songs from root
         if (browsepath) {
@@ -118,7 +118,6 @@ var app = $.sammy(function() {
       $('#panel-heading').text("Audio CD");
       $('#audiocd-info').removeClass('hide');
       socket.send('MPD_API_AUDIO_CD');
-
     });
 
 
@@ -283,16 +282,67 @@ function webSocketConnect() {
                     $('#audiocd-info-artist').text(obj.data.artist);
 
                     $('#salamisandwich > tbody').empty();
-                    for (var song in obj.data.tracks) {
-                        var minutes = Math.floor(obj.data.tracks[song].duration / 60);
-                        var seconds = obj.data.tracks[song].duration - minutes * 60;
+
+                    var add_all_songs = $('#add-all-songs');
+                    add_all_songs.off(); // remove previous binds
+                    add_all_songs.on('click', function() {
+                        for (var item in obj.data.tracks) {
+                            socket.send('MPD_API_ADD_TRACK,cdda:///' + (parseInt(item) + 1) );
+                        }
+                    });
+                    add_all_songs.show();
+
+                    for (var item in obj.data.tracks) {
+                        var track = obj.data.tracks[item];
+                        var minutes = Math.floor(track.duration / 60);
+                        var seconds = track.duration - minutes * 60;
 
                         $('#salamisandwich > tbody').append(
-                            "<tr><td>"+ (parseInt(song) + 1) +"</td>" +
-                                "<td>"+ obj.data.tracks[song].title +"</td>" +
-                                "<td>"+ minutes + ":" + (seconds < 10 ? '0' : '') + seconds +
-                        "</td><td></td></tr>");
+                            "<tr uri=\"" + encodeURI("cdda:///" + (parseInt(item) + 1) ) + "\" class=\"song\">" +
+                            "<td><span class=\"glyphicon glyphicon-music\"></span></td>" +
+                            "<td>" + track.title +"</td>" +
+                            "<td>"+ minutes + ":" + (seconds < 10 ? '0' : '') + seconds +
+                            "</td><td></td></tr>"
+                        );
                     }
+
+                    function appendClickableIcon(appendTo, onClickAction, glyphicon) {
+                        $(appendTo).append(
+                            "<a role=\"button\" class=\"pull-right btn-group-hover\">" +
+                            "<span class=\"glyphicon glyphicon-" + glyphicon + "\"></span></a>")
+                            .find('a').click(function(e) {
+                                e.stopPropagation();
+                                socket.send(onClickAction + "," + decodeURI($(this).parents("tr").attr("uri")));
+                            $('.top-right').notify({
+                                message:{
+                                    text: $('td:nth-child(2)', $(this).parents("tr")).text() + " added"
+                                } }).show();
+                            }).fadeTo('fast',1);
+                    }
+
+                    if ( isTouch ) {
+                        appendClickableIcon($("#salamisandwich > tbody > tr.dir > td:last-child"), 'MPD_API_ADD_TRACK', 'plus');
+                        appendClickableIcon($("#salamisandwich > tbody > tr.song > td:last-child"), 'MPD_API_ADD_TRACK', 'play');
+                    } else {
+                        $('#salamisandwich > tbody > tr').on({
+                            mouseenter: function() {
+                                appendClickableIcon($(this).children().last(), 'MPD_API_ADD_PLAY_TRACK', 'play');
+                            },
+                            mouseleave: function(){
+                                $(this).children().last().find("a").stop().remove();
+                            }
+                        });
+                    };
+                    $('#salamisandwich > tbody > tr').on({
+                        click: function() {
+                                socket.send("MPD_API_ADD_TRACK," + decodeURI($(this).attr("uri")));
+                                $('.top-right').notify({
+                                    message:{
+                                        text: $('td:nth-child(2)', this).text() + " added"
+                                    }
+                                }).show();
+                            }
+                    });
                     break;
                 case "search":
                     $('#wait').modal('hide');
